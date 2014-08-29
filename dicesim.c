@@ -27,6 +27,22 @@ typedef struct {
 	float x, y;
 } Vector2;
 
+void Vector2Add(Vector2* a, Vector2* b, Vector2* o) {
+	o->x = a->x + b->x;
+	o->y = a->y + b->y;
+};
+
+void Vector2Sub(Vector2* a, Vector2* b, Vector2* o) {
+	o->x = a->x - b->x;
+	o->y = a->y - b->y;
+};
+
+void Vector2Mul(Vector2* a, float b, Vector2* o) {
+	o->x = a->x * b;
+	o->y = a->y * b;
+}
+
+
 typedef struct {
 	float x, y, z;
 } Vector3;
@@ -265,7 +281,7 @@ void Matrix4Zero(Matrix4* mat) {
 	mat->v41 = 0.0; mat->v42 = 0.0;	mat->v43 = 0.0;	mat->v44 = 1.0;
 };
 
-void Projection(Vector3* pos, Point* out) {
+void Projection(Vector3* pos, Vector2* out) {
 	float fov = 1.0 / tan(M_FOV);
 	out->x = (pos->x / pos->z) * fov * M_WINDOWSIZE_Y * 0.5;
 	out->y = (pos->y / pos->z) * fov * M_WINDOWSIZE_Y * 0.5;
@@ -286,9 +302,9 @@ int SURFACE[6][4] = {
 	{ 0, 1, 3, 2 },
 	{ 1, 0, 4, 5 },
 	{ 0, 2, 6, 4 },
-	{ 4, 6, 7, 5 },
+	{ 1, 5, 7, 3 },
 	{ 2, 3, 7, 6 },
-	{ 1, 5, 7, 3 }
+	{ 4, 6, 7, 5 }
 };
 
 int SIDE[12][2] = {
@@ -315,13 +331,33 @@ bool SideJudge(Vector3* ab, Vector3* bc, Vector3* v) {
 }; //ポリゴンの裏表判定 表ならtrue
 
 
+////
+//ab
+//dc
+////
+
+Vector2 UMapping(Vector2* a, Vector2* b, float o) {
+	Vector2 ab;
+	Vector2Sub(b, a, &ab);
+	Vector2Mul(&ab, o, &ab);
+	Vector2Add(a, &ab, &ab);
+	return ab;
+}
+
+Vector2 UVMapping(Vector2* a, Vector2* b, Vector2* c, Vector2* d, Vector2* o) {
+	Vector2 ab = UMapping(a, b, o->x);
+	Vector2 dc = UMapping(d, c, o->x);
+	return UMapping(&ab, &dc, o->y);
+}; //UVマッピングとは言っていない
+
+
 
 unsigned long frame; //総フレーム数
 char_far gvram; //1st buffer
 char_far dvram; //2nd buffer
 unsigned long starttime; //game start time
 
-void DGLine(Point* a, Point* b, Color color) {
+void DGLine(Vector2* a, Vector2* b, Color color) {
 	dg_line(dvram, a->x + M_WINDOWSIZE_X / 2, a->y + M_WINDOWSIZE_Y / 2, b->x + M_WINDOWSIZE_X / 2, b->y + M_WINDOWSIZE_Y / 2, color);
 }
 
@@ -331,6 +367,85 @@ Vector3 camorg = { 0.0, 0.0, 10.0 };
 Vector3 camdir = { 0.0, 0.0, 0.0 };
 Vector2 diceloc = { 0.0, 0.0 };
 Quaternion dicerot = { 0.0, 0.0, 0.0, 0.0 };
+
+void RenderingDiceTextureDot(Vector2* a, Vector2* b, Vector2* c, Vector2* d, Vector2* o) {
+	Vector2 ta = { -0.1, -0.1 };
+	Vector2 tb = { -0.1, +0.1 };
+	Vector2 tc = { +0.1, +0.1 };
+	Vector2 td = { +0.1, -0.1 };
+	Vector2Add(&ta, o, &ta);
+	Vector2Add(&tb, o, &tb);
+	Vector2Add(&tc, o, &tc);
+	Vector2Add(&td, o, &td);
+	ta = UVMapping(a, b, c, d, &ta);
+	tb = UVMapping(a, b, c, d, &tb);
+	tc = UVMapping(a, b, c, d, &tc);
+	td = UVMapping(a, b, c, d, &td);
+	DGLine(&ta, &tb, RGB(255, 255, 255));
+	DGLine(&tb, &tc, RGB(255, 255, 255));
+	DGLine(&tc, &td, RGB(255, 255, 255));
+	DGLine(&td, &ta, RGB(255, 255, 255));
+}
+
+const Vector2 DOT_LOC_LT = { 0.2, 0.2 };
+const Vector2 DOT_LOC_RT = { 0.8, 0.2 };
+const Vector2 DOT_LOC_LC = { 0.2, 0.5 };
+const Vector2 DOT_LOC_CC = { 0.5, 0.5 };
+const Vector2 DOT_LOC_RC = { 0.8, 0.5 };
+const Vector2 DOT_LOC_LB = { 0.2, 0.8 };
+const Vector2 DOT_LOC_RB = { 0.8, 0.8 };
+
+//正確にはテクスチャではないが
+void RenderingDiceTexture(Vector2* a, Vector2* b, Vector2* c, Vector2* d, int number) {
+	switch (number) {
+	case 0: {
+		Vector2 ta = { 0.3, 0.3 };
+		Vector2 tb = { 0.3, 0.7 };
+		Vector2 tc = { 0.7, 0.7 };
+		Vector2 td = { 0.7, 0.3 };
+		ta = UVMapping(a, b, c, d, &ta);
+		tb = UVMapping(a, b, c, d, &tb);
+		tc = UVMapping(a, b, c, d, &tc);
+		td = UVMapping(a, b, c, d, &td);
+		DGLine(&ta, &tb, RGB(255, 0, 0));
+		DGLine(&tb, &tc, RGB(255, 0, 0));
+		DGLine(&tc, &td, RGB(255, 0, 0));
+		DGLine(&td, &ta, RGB(255, 0, 0));
+		break;
+	}
+	case 1:
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_RT);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_LB);
+		break;
+	case 2:
+
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_RT);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_CC);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_LB);
+		break;
+	case 3:
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_LT);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_RT);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_LB);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_RB);
+		break;
+	case 4:
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_LT);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_RT);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_CC);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_LB);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_RB);
+		break;
+	case 5:
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_LT);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_RT);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_LC);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_RC);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_LB);
+		RenderingDiceTextureDot(a, b, c, d, &DOT_LOC_RB);
+		break;
+	}
+};
 
 void RenderingDice() {
 	int i, j, k;
@@ -403,7 +518,7 @@ void RenderingDice() {
 		Matrix4Apply(&matrix, &model[i]);
 	}
 
-	Point pts[8];
+	Vector2 pts[8];
 
 	for (i = 0; i < 8; i++) {
 		Projection(&model[i], &pts[i]);
@@ -415,11 +530,13 @@ void RenderingDice() {
 
 		}
 	}
+
+	for (i = 0; i < 6; i++) {
+		if (surfaceflag & 1 << i) {
+			RenderingDiceTexture(&pts[SURFACE[i][0]], &pts[SURFACE[i][1]], &pts[SURFACE[i][2]], &pts[SURFACE[i][3]], i);
+		}
+	}
 };
-
-void RenderingAxis() {
-
-}
 
 void Rendering() {
 	RenderingDice();
