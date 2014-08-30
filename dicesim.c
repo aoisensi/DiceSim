@@ -19,6 +19,10 @@ const int M_WINDOWSIZE_Y = 480;
 
 const float M_RADIAN_SP = M_PI / 360.0;
 
+const int M_GRIDSIZE = 7;
+
+const float M_COEFFICIENT = 0.4; //反発係数
+
 typedef struct {
 	int x, y;
 } Point; //template使いたい
@@ -363,10 +367,12 @@ void DGLine(Vector2* a, Vector2* b, Color color) {
 
 //グローバル変数使うの糞コードな気しかしない
 //名前空間がないクソ言語
-Vector3 camorg = { 0.0, 0.0, 10.0 };
+Vector3 camorg = { 0.0, 0.0, 0.0 };
 Vector3 camdir = { 0.0, 0.0, 0.0 };
-Vector2 diceloc = { 0.0, 0.0 };
+Vector3 diceloc = { 0.0, 0.0, 0.0 };
 Quaternion dicerot = { 0.0, 0.0, 0.0, 0.0 };
+
+Matrix4 cammat;
 
 void RenderingDiceTextureDot(Vector2* a, Vector2* b, Vector2* c, Vector2* d, Vector2* o) {
 	Vector2 ta = { -0.1, -0.1 };
@@ -506,13 +512,9 @@ void RenderingDice() {
 		}
 	}
 
-	matrix = MATRIX4IDENTITY;
+	Matrix4 tmp = matrix;
 
-
-	Vector3Reverse(&camorg);
-	Matrix4Translate(&matrix, &camorg);
-	Vector3Reverse(&camorg);
-	Matrix4RotateXYZ(&matrix, &camdir);
+	Matrix4Multiple(&tmp, &cammat, &matrix);
 
 	for (i = 0; i < 8; i++) { //行列によるビュー座標への変換
 		Matrix4Apply(&matrix, &model[i]);
@@ -538,17 +540,66 @@ void RenderingDice() {
 	}
 };
 
+void RenderingGridLines(Vector3* aa, Vector3* ab, Vector3* ba, Vector3* bb) {
+	int i;
+	float f, g = (float)M_GRIDSIZE;
+	Vector3 al, bl;
+	Vector3Sub(ab, aa, &al);
+	Vector3Sub(bb, ba, &bl);
+	for (i = 0; i < M_GRIDSIZE + 1; i++){
+		f = i / g;
+		Vector3 as, bs, av, bv;
+		Vector2 a, b;
+		Vector3Mul(&al, f, &av);
+		Vector3Mul(&bl, f, &bv);
+		Vector3Add(aa, &av, &as);
+		Vector3Add(ba, &bv, &bs);
+		Projection(&as, &a);
+		Projection(&bs, &b);
+		DGLine(&a, &b, RGB(0, 128, 0));
+	}
+}
+
+void RenderingGrid() {
+	Vector3 dl = diceloc;
+	dl.x = floorf(dl.x + 0.5);
+	dl.z = floorf(dl.z + 0.5);
+	float adder = M_GRIDSIZE;
+	Vector3 ga = { dl.x + adder, 0.0, dl.z + adder };
+	Vector3 gb = { dl.x + adder, 0.0, dl.z - adder };
+	Vector3 gc = { dl.x - adder, 0.0, dl.z - adder };
+	Vector3 gd = { dl.x - adder, 0.0, dl.z + adder };
+
+	Matrix4Apply(&cammat, &ga);
+	Matrix4Apply(&cammat, &gb);
+	Matrix4Apply(&cammat, &gc);
+	Matrix4Apply(&cammat, &gd);
+
+	
+
+	RenderingGridLines(&ga, &gb, &gd, &gc);
+	RenderingGridLines(&ga, &gd, &gb, &gc);
+
+};
+
 void Rendering() {
+	RenderingGrid();
 	RenderingDice();
 };
 
 void Init() {
 	starttime = timeGetTime();
-	dg_setscreen(0, 0, M_WINDOWSIZE_X, M_WINDOWSIZE_Y, 0, "Dice Simulator");
+	dg_setscreen(0, 0, M_WINDOWSIZE_X, M_WINDOWSIZE_Y, 0, "Dice Simulator 2014 (Early Access)");
 	dvram = dg_createbmp(M_WINDOWSIZE_X, M_WINDOWSIZE_Y);
 };
 
 void Input() {
+	/*
+	if (getch3('W')) diceloc.z += 0.01;
+	if (getch3('S')) diceloc.z -= 0.01;
+	if (getch3('A')) diceloc.x += 0.01;
+	if (getch3('D')) diceloc.x -= 0.01;
+	*/
 	Matrix4 matrix = MATRIX4IDENTITY;
 
 	if (getch3(VK_DOWN))  camdir.x += M_RADIAN_SP;
@@ -565,9 +616,15 @@ void Input() {
 
 	camorg.x = 0.0;
 	camorg.y = 0.0;
-	camorg.z = -10.0;
+	camorg.z = -30.0;
 	
 	Matrix4Apply(&matrix, &camorg);
+
+	cammat = MATRIX4IDENTITY;
+	Vector3Reverse(&camorg);
+	Matrix4Translate(&cammat, &camorg);
+	Vector3Reverse(&camorg);
+	Matrix4RotateXYZ(&cammat, &camdir);
 }
 
 int main() {
